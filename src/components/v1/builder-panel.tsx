@@ -64,7 +64,10 @@ export function BuilderPanel({
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/v1/workspace');
-      if (!res.ok) throw new Error('Could not load workspace files.');
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? 'Could not load workspace files.');
+      }
       const list = (await res.json()) as WorkspaceFileSummary[];
       setFiles(list);
       const site = list.filter((f) => f.path.startsWith('site/'));
