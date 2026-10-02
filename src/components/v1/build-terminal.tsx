@@ -37,7 +37,7 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
       });
       out.push(`> provider: ${res.provider}  role: ${res.aiRole ?? 'unknown'}`);
       for (const s of res.steps ?? []) {
-        const path = typeof s.input?.path === 'string' ? ` ${s.input.path}` : '';
+        const path = typeof s.input?.['path'] === 'string' ? ` ${s.input['path']}` : '';
         out.push(`> [${s.status}] ${s.toolId}${path}${s.error ? ` — ${s.error}` : ''}`);
       }
       const wrote = (res.steps ?? []).filter(
