@@ -4,4 +4,4 @@
 - [x] Run typecheck and all tests; verify the preview production build signal.
 - [x] Keep completed builder prompts and results in the active chat without replacing its history.
 - [x] Keep the mobile composer visible above the keyboard and its cursor visible in long drafts.
-- [ ] Run typecheck and verify the production build.
+- [x] Run typecheck and verify the production build.
