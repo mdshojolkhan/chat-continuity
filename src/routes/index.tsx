@@ -23,7 +23,7 @@ import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      { title: 'V1 Workspace — Multi-AI terminal & app builder' },
+      { title: 'V1 Test App' },
       {
         name: 'description',
         content:
