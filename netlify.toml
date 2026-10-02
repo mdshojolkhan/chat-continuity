@@ -1,0 +1,11 @@
+# Netlify build settings for this TanStack Start app.
+# Nitro auto-detects Netlify and emits the `netlify` preset:
+#   - static client files -> dist/
+#   - server function     -> .netlify/functions-internal/server
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 7, Nitro and TanStack Start require Node >= 22.12.
+  NODE_VERSION = "22"
