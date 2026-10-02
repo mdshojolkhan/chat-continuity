@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
+import { BuildTerminal } from './build-terminal';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
@@ -218,6 +219,8 @@ export function BuilderPanel({
           ) : null}
         </div>
       )}
+
+      {showPrompt && <BuildTerminal onBuilt={() => void refresh()} />}
 
       {error ? (
         <p
