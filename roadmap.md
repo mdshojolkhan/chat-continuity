@@ -1,0 +1,7 @@
+- [x] Add message and code copy controls with confirmation.
+- [x] Add non-destructive user-message revision from the chat composer.
+- [x] Verify Markdown/mobile rendering and existing chat state.
+- [x] Run typecheck and all tests; verify the preview production build signal.
+- [x] Keep completed builder prompts and results in the active chat without replacing its history.
+- [x] Keep the mobile composer visible above the keyboard and its cursor visible in long drafts.
+- [x] Run typecheck and verify the production build.
