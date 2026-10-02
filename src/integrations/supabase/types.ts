@@ -14,33 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      workspace_files: {
-        Row: {
-          bytes: number
-          content: string
-          created_at: string
-          metadata: Json
-          path: string
-          updated_at: string
-        }
-        Insert: {
-          bytes?: number
-          content?: string
-          created_at?: string
-          metadata?: Json
-          path: string
-          updated_at?: string
-        }
-        Update: {
-          bytes?: number
-          content?: string
-          created_at?: string
-          metadata?: Json
-          path?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
