@@ -23,7 +23,7 @@ import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 export const Route = createFileRoute('/')({
   head: () => ({
     meta: [
-      { title: 'V1 Workspace — Multi-AI terminal & app builder' },
+      { title: 'V1 Test App' },
       {
         name: 'description',
         content:
@@ -33,7 +33,7 @@ export const Route = createFileRoute('/')({
       { name: 'twitter:card', content: 'summary_large_image' },
       {
         property: 'og:title',
-        content: 'V1 Workspace — Multi-AI terminal & app builder',
+        content: 'V1 Test App',
       },
       {
         property: 'og:description',
