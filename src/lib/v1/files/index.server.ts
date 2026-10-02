@@ -28,6 +28,9 @@ const COLUMNS = "path, content, bytes, metadata, created_at, updated_at";
 async function db() {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // The admin client is created lazily; touch it here so missing
+    // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY surface as a clear storage error.
+    void supabaseAdmin.from;
     return supabaseAdmin;
   } catch (error) {
     console.error("[workspace] storage client unavailable", error);
