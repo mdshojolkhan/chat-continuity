@@ -107,6 +107,43 @@ function autoTitle(text: string) {
   return clean.length > 32 ? `${clean.slice(0, 32)}…` : clean;
 }
 
+function keepTextareaCaretVisible(textarea: HTMLTextAreaElement) {
+  const selectionEnd = textarea.selectionEnd;
+  if (selectionEnd === textarea.value.length) {
+    textarea.scrollTop = textarea.scrollHeight;
+    return;
+  }
+
+  const computed = window.getComputedStyle(textarea);
+  const mirror = document.createElement('div');
+  const marker = document.createElement('span');
+  mirror.style.position = 'fixed';
+  mirror.style.left = '-9999px';
+  mirror.style.top = '0';
+  mirror.style.visibility = 'hidden';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.overflowWrap = 'break-word';
+  mirror.style.width = `${textarea.clientWidth}px`;
+  mirror.style.boxSizing = computed.boxSizing;
+  mirror.style.padding = computed.padding;
+  mirror.style.border = computed.border;
+  mirror.style.font = computed.font;
+  mirror.style.letterSpacing = computed.letterSpacing;
+  mirror.style.lineHeight = computed.lineHeight;
+  mirror.textContent = textarea.value.slice(0, selectionEnd);
+  marker.textContent = '\u200b';
+  mirror.append(marker);
+  document.body.append(mirror);
+
+  const lineHeight = Number.parseFloat(computed.lineHeight) || 20;
+  const caretTop = marker.offsetTop;
+  const visibleTop = textarea.scrollTop;
+  const visibleBottom = visibleTop + textarea.clientHeight - lineHeight;
+  if (caretTop < visibleTop) textarea.scrollTop = caretTop;
+  else if (caretTop > visibleBottom) textarea.scrollTop = caretTop - textarea.clientHeight + lineHeight * 2;
+  mirror.remove();
+}
+
 function emptyTabs(): Record<ProviderId, string[]> {
   return Object.fromEntries(
     PROVIDER_IDS.map((p) => [p, [] as string[]]),
@@ -220,6 +257,7 @@ function WorkspacePage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  const builderConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -229,28 +267,31 @@ function WorkspacePage() {
         && viewport.height < window.innerHeight - 100;
       setKeyboardViewport(keyboardOpen ? { top: viewport.offsetTop, height: viewport.height } : null);
     };
-    viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-    window.addEventListener('resize', update);
-    window.addEventListener('focusin', update);
-    window.addEventListener('focusout', update);
+    const scheduleUpdate = () => window.requestAnimationFrame(update);
+    update();
+    viewport.addEventListener('resize', scheduleUpdate);
+    viewport.addEventListener('scroll', scheduleUpdate);
+    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('focusin', scheduleUpdate);
+    window.addEventListener('focusout', scheduleUpdate);
     return () => {
-      viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-      window.removeEventListener('focusin', update);
-      window.removeEventListener('focusout', update);
+      viewport.removeEventListener('resize', scheduleUpdate);
+      viewport.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('focusin', scheduleUpdate);
+      window.removeEventListener('focusout', scheduleUpdate);
     };
   }, []);
 
   useLayoutEffect(() => {
     const textarea = composerRef.current;
     if (!textarea) return;
+    const selectionStart = textarea.selectionStart;
+    const selectionEnd = textarea.selectionEnd;
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
-    if (textarea.selectionStart === textarea.value.length) {
-      textarea.scrollTop = textarea.scrollHeight;
-    }
+    textarea.setSelectionRange(selectionStart, selectionEnd);
+    keepTextareaCaretVisible(textarea);
   }, [input]);
 
   const activeId = state.activeTab[provider];
@@ -317,16 +358,25 @@ function WorkspacePage() {
   }
 
   function showGeneratedInChat(prompt: string, result: string) {
-    if (!activeId) return;
+    const targetId = builderConversationRef.current ?? activeId;
+    if (!targetId) return;
     const now = Date.now();
     setState((prev) => {
-      const conv = prev.conversations[activeId];
+      const conv = prev.conversations[targetId];
       if (!conv) return prev;
+      const providerTabs = prev.openTabs[conv.provider] ?? [];
       return {
         ...prev,
+        openTabs: {
+          ...prev.openTabs,
+          [conv.provider]: providerTabs.includes(targetId)
+            ? providerTabs
+            : [...providerTabs, targetId],
+        },
+        activeTab: { ...prev.activeTab, [conv.provider]: targetId },
         conversations: {
           ...prev.conversations,
-          [activeId]: {
+          [targetId]: {
             ...conv,
             title: conv.messages.length === 0 ? autoTitle(prompt) : conv.title,
             messages: [
@@ -339,6 +389,9 @@ function WorkspacePage() {
         },
       };
     });
+    const targetProvider = state.conversations[targetId]?.provider;
+    if (targetProvider) setProvider(targetProvider);
+    builderConversationRef.current = null;
     setBuilderOpen(false);
   }
 
@@ -934,7 +987,13 @@ function WorkspacePage() {
               id="ws-message"
               rows={1}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+                window.requestAnimationFrame(() => {
+                  if (composerRef.current) keepTextareaCaretVisible(composerRef.current);
+                });
+              }}
+              onSelect={(event) => keepTextareaCaretVisible(event.currentTarget)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
@@ -971,7 +1030,10 @@ function WorkspacePage() {
         >
           <button
             type="button"
-            onClick={() => setBuilderOpen(true)}
+            onClick={() => {
+              builderConversationRef.current = activeId ?? null;
+              setBuilderOpen(true);
+            }}
             className="text-[12.5px]"
             style={{ color: 'var(--ws-muted)' }}
             data-testid="button-open-builder"
