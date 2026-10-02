@@ -17,6 +17,12 @@ const BUILD_PREFIX = [
 ].join(' ');
 
 const WRITE_TOOLS = new Set(['file_write', 'file_delete']);
+const MAX_FIX_ATTEMPTS = 3;
+const FIX_PREFIX = [
+  'The previous build step for the V1 workspace failed validation.',
+  'Use file_read/file_list to inspect the relevant project source files, then fix the problem with file_write.',
+  'Only edit real source files; do not write documentation HTML. Reply with a short list of files changed.',
+].join(' ');
 
 export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
   const [prompt, setPrompt] = useState('');
@@ -28,38 +34,69 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
     if (!text || status === 'BUILDING') return;
     setStatus('BUILDING');
     const out: string[] = [`$ build "${text.slice(0, 80)}"`];
+    const log = (line: string) => {
+      out.push(line);
+      setLines([...out]);
+    };
     setLines([...out]);
-    try {
-      const res = await sendChatMessage({
-        message: `${BUILD_PREFIX} ${text}`.slice(0, 8000),
-        mode: 'programming',
-        conversationId: 'v1-build-terminal',
-      });
-      out.push(`> provider: ${res.provider}  role: ${res.aiRole ?? 'unknown'}`);
-      for (const s of res.steps ?? []) {
-        const path = typeof s.input?.['path'] === 'string' ? ` ${s.input['path']}` : '';
-        out.push(`> [${s.status}] ${s.toolId}${path}${s.error ? ` — ${s.error}` : ''}`);
+
+    const touched = new Set<string>();
+    let message = `${BUILD_PREFIX} ${text}`;
+    let anyWrite = false;
+    let lastError = '';
+
+    for (let attempt = 0; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
+      if (attempt > 0) log(`$ auto-fix attempt ${attempt}/${MAX_FIX_ATTEMPTS}`);
+      try {
+        const res = await sendChatMessage({
+          message: message.slice(0, 8000),
+          mode: 'programming',
+          conversationId: 'v1-build-terminal',
+        });
+        log(`> provider: ${res.provider}  role: ${res.aiRole ?? 'unknown'}`);
+        const steps = res.steps ?? [];
+        for (const s of steps) {
+          const path = typeof s.input?.['path'] === 'string' ? s.input['path'] : '';
+          if (path) touched.add(path);
+          log(`> [${s.status}] ${s.toolId}${path ? ` ${path}` : ''}${s.error ? ` — ${s.error}` : ''}`);
+        }
+        // Helpers can never write; the server refuses it. Stop immediately.
+        if (res.aiRole === 'helper') {
+          log('! Helper AI cannot modify files. Select an Admin AI in Settings → AI Providers.');
+          setStatus('ERROR');
+          return;
+        }
+        const wrote = steps.filter((s) => WRITE_TOOLS.has(s.toolId) && s.status === 'completed');
+        if (wrote.length) anyWrite = true;
+        // Validation: every step must succeed and at least one file change must exist.
+        const errors = steps
+          .filter((s) => s.status === 'failed' || s.status === 'refused')
+          .map((s) => `${s.toolId}${typeof s.input?.['path'] === 'string' ? ` ${s.input['path']}` : ''}: ${s.error ?? s.status}`);
+        if (!anyWrite) errors.push('No project files were modified.');
+        if (!errors.length) {
+          log(`✓ validation passed (${wrote.length} file change(s) this pass).`);
+          if (res.message) log(res.message);
+          setStatus('SUCCESS');
+          onBuilt?.();
+          return;
+        }
+        lastError = errors.join('\n');
+      } catch (e) {
+        lastError = e instanceof V1ApiError || e instanceof Error ? e.message : 'Build failed.';
       }
-      const wrote = (res.steps ?? []).filter(
-        (s) => WRITE_TOOLS.has(s.toolId) && s.status === 'completed',
-      );
-      if (res.aiRole === 'helper') {
-        out.push('! Helper AI cannot modify files. Select an Admin AI in Settings → AI Providers.');
-        setStatus('ERROR');
-      } else if (!wrote.length) {
-        out.push('! No project files were modified.');
-        setStatus('ERROR');
-      } else {
-        out.push(`✓ ${wrote.length} file change(s) applied.`);
-        if (res.message) out.push(res.message);
-        setStatus('SUCCESS');
-        onBuilt?.();
+      log(`! error:\n${lastError}`);
+      if (attempt < MAX_FIX_ATTEMPTS) {
+        message = [
+          FIX_PREFIX,
+          `Original request: ${text}`,
+          `Errors:\n${lastError}`,
+          touched.size ? `Relevant files: ${[...touched].slice(0, 30).join(', ')}` : 'Relevant files: use file_list to locate them.',
+        ].join('\n');
       }
-    } catch (e) {
-      out.push(`! ${e instanceof V1ApiError || e instanceof Error ? e.message : 'Build failed.'}`);
-      setStatus('ERROR');
     }
-    setLines([...out]);
+    log(`! ${MAX_FIX_ATTEMPTS} auto-fix attempts used. Remaining error:\n${lastError}`);
+    if (anyWrite) onBuilt?.();
+    setStatus('ERROR');
   };
 
   const statusColor =
