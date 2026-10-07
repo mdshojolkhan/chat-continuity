@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiV1ProjectsRouteImport } from './routes/api/v1/projects'
 import { Route as ApiV1ProvidersRouteImport } from './routes/api/v1/providers'
 import { Route as ApiV1StatusRouteImport } from './routes/api/v1/status'
 import { Route as ApiV1ToolsRouteImport } from './routes/api/v1/tools'
@@ -32,6 +33,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProjectsRoute = ApiV1ProjectsRouteImport.update({
+  id: '/api/v1/projects',
+  path: '/api/v1/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ProvidersRoute = ApiV1ProvidersRouteImport.update({
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
   '/api/v1/tools': typeof ApiV1ToolsRouteWithChildren
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
   '/api/v1/tools': typeof ApiV1ToolsRouteWithChildren
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
   '/api/v1/tools': typeof ApiV1ToolsRouteWithChildren
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
     | '/api/v1/tools'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
     | '/api/v1/tools'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
     | '/api/v1/tools'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiV1ProjectsRoute: typeof ApiV1ProjectsRoute
   ApiV1ProvidersRoute: typeof ApiV1ProvidersRoute
   ApiV1StatusRoute: typeof ApiV1StatusRoute
   ApiV1ToolsRoute: typeof ApiV1ToolsRouteWithChildren
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects': {
+      id: '/api/v1/projects'
+      path: '/api/v1/projects'
+      fullPath: '/api/v1/projects'
+      preLoaderRoute: typeof ApiV1ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/providers': {
@@ -230,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiV1ProjectsRoute: ApiV1ProjectsRoute,
   ApiV1ProvidersRoute: ApiV1ProvidersRoute,
   ApiV1StatusRoute: ApiV1StatusRoute,
   ApiV1ToolsRoute: ApiV1ToolsRouteWithChildren,
