@@ -5,17 +5,15 @@
  */
 import { useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
+import { BUILDER_STRUCTURE_RULES } from '@/lib/v1/builder-rules';
 
 type Status = 'IDLE' | 'BUILDING' | 'SUCCESS' | 'ERROR';
 
 const BUILD_PREFIX = [
   'IMPLEMENTATION REQUEST. You are the V1 Admin AI implementing a real application in the V1 workspace.',
   'Step 1: call file_list (and file_read on relevant files) to inspect existing Workspace Files.',
-  'Step 2: implement the request as real, runnable source files split by responsibility, using file_write:',
-  'e.g. package.json with dependencies and scripts, server code (server/index.js or src/server/*.ts),',
-  'frontend code (src/*.tsx/.ts/.js, components, styles), and required config files. Reuse and modify existing files when appropriate.',
-  'Never write architecture guides, blueprint pages, simulators, fake demo HTML, or Markdown docs,',
-  'and never put an entire application inside one HTML file. A small index.html entry that loads separate script files is fine.',
+  'Step 2: implement the request as real, runnable source files using file_write. Reuse and modify existing files when appropriate.',
+  BUILDER_STRUCTURE_RULES,
   'Reply with a short list of files changed.',
   'Request:',
 ].join(' ');
@@ -26,7 +24,8 @@ const FIX_PREFIX = [
   'IMPLEMENTATION REQUEST (fix pass). The previous build for the V1 workspace failed validation.',
   'Use file_read/file_list to inspect the relevant project source files, then fix the problem with file_write',
   '(or file_delete for documentation/demo files that should not exist). Implement real, separate source files;',
-  'no documentation, blueprint/simulator pages, or single-file HTML apps. Reply with a short list of files changed.',
+  'no documentation, blueprint/simulator pages, or single-file HTML apps. Keep the existing modular structure; do not restructure files that are not part of the error.',
+  'Reply with a short list of files changed.',
 ].join(' ');
 
 const SOURCE_EXT = /\.(tsx?|jsx?|mjs|cjs|json|css|scss|vue|svelte|py|go|rs|toml|ya?ml|env\.example)$/i;
