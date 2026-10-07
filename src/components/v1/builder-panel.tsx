@@ -5,16 +5,16 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
+import { BUILDER_STRUCTURE_RULES } from '@/lib/v1/builder-rules';
 import { BuildTerminal } from './build-terminal';
 import { ProjectBar, useActiveProject } from './project-bar';
 import { DevicePreview, type PreviewDevice } from './device-preview';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
-  'Build this as a small static website inside the V1 workspace.',
-  'Use the file_write skill to save the files: site/index.html, site/styles.css and site/script.js (script optional).',
-  'index.html must link "styles.css" and "script.js" with relative paths.',
-  'If those files already exist, read them first and update them instead of starting over.',
+  'Build the requested app as real files inside the V1 workspace, saving each one with the file_write skill.',
+  BUILDER_STRUCTURE_RULES,
+  'If relevant files already exist, read them first and update them instead of starting over.',
   'After saving, reply with a short summary of what you built.',
   'Request:',
 ].join(' ');

@@ -5,17 +5,15 @@
  */
 import { useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
+import { BUILDER_STRUCTURE_RULES } from '@/lib/v1/builder-rules';
 
 type Status = 'IDLE' | 'BUILDING' | 'SUCCESS' | 'ERROR';
 
 const BUILD_PREFIX = [
   'IMPLEMENTATION REQUEST. You are the V1 Admin AI implementing a real application in the V1 workspace.',
   'Step 1: call file_list (and file_read on relevant files) to inspect existing Workspace Files.',
-  'Step 2: implement the request as real, runnable source files split by responsibility, using file_write:',
-  'e.g. package.json with dependencies and scripts, server code (server/index.js or src/server/*.ts),',
-  'frontend code (src/*.tsx/.ts/.js, components, styles), and required config files. Reuse and modify existing files when appropriate.',
-  'Never write architecture guides, blueprint pages, simulators, fake demo HTML, or Markdown docs,',
-  'and never put an entire application inside one HTML file. A small index.html entry that loads separate script files is fine.',
+  'Step 2: implement the request as real, runnable source files using file_write. Reuse and modify existing files when appropriate.',
+  BUILDER_STRUCTURE_RULES,
   'Reply with a short list of files changed.',
   'Request:',
 ].join(' ');
