@@ -12,12 +12,33 @@ import { DevicePreview, type PreviewDevice } from './device-preview';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
-  'Build the requested app as real files inside the V1 workspace, saving each one with the file_write skill.',
+  'IMPLEMENTATION REQUEST. Build the requested app as real files inside the V1 workspace.',
+  'You MUST call the file_write tool for every file you create or change; a text-only answer or a plan without file_write calls is a failure.',
+  'Create as many files as the app needs, in whatever framework, modules or API it requires.',
   BUILDER_STRUCTURE_RULES,
   'If relevant files already exist, read them first and update them instead of starting over.',
   'After saving, reply with a short summary of what you built.',
   'Request:',
 ].join(' ');
+
+const WRITE_NUDGE =
+  'You replied without saving any files. Do not explain or plan again. Now call file_write for each source file of the app requested above, then reply with the list of files saved.';
+
+type GenStep = { toolId?: string; status?: string; error?: string; input?: unknown };
+
+/** Pure: classify a Generate run's steps. Exported for tests. */
+export function classifyGenerate(steps: GenStep[]): {
+  written: number;
+  writeErrors: string[];
+} {
+  const writes = steps.filter((s) => s.toolId === 'file_write' || s.toolId === 'file_append');
+  return {
+    written: writes.filter((s) => s.status === 'completed').length,
+    writeErrors: writes
+      .filter((s) => s.status === 'failed' || s.status === 'refused')
+      .map((s) => s.error ?? 'File write failed.'),
+  };
+}
 
 async function readFile(projectId: string, path: string): Promise<string> {
   const res = await fetch(`/api/v1/workspace?projectId=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`);
