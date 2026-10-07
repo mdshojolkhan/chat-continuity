@@ -257,7 +257,6 @@ function WorkspacePage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
-  const builderConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -357,43 +356,6 @@ function WorkspacePage() {
     composerRef.current?.focus();
   }
 
-  function showGeneratedInChat(prompt: string, result: string) {
-    const targetId = builderConversationRef.current ?? activeId;
-    if (!targetId) return;
-    const now = Date.now();
-    setState((prev) => {
-      const conv = prev.conversations[targetId];
-      if (!conv) return prev;
-      const providerTabs = prev.openTabs[conv.provider] ?? [];
-      return {
-        ...prev,
-        openTabs: {
-          ...prev.openTabs,
-          [conv.provider]: providerTabs.includes(targetId)
-            ? providerTabs
-            : [...providerTabs, targetId],
-        },
-        activeTab: { ...prev.activeTab, [conv.provider]: targetId },
-        conversations: {
-          ...prev.conversations,
-          [targetId]: {
-            ...conv,
-            title: conv.messages.length === 0 ? autoTitle(prompt) : conv.title,
-            messages: [
-              ...conv.messages,
-              { role: 'user', content: prompt, time: now },
-              { role: 'assistant', content: result, time: now },
-            ],
-            updatedAt: now,
-          },
-        },
-      };
-    });
-    const targetProvider = state.conversations[targetId]?.provider;
-    if (targetProvider) setProvider(targetProvider);
-    builderConversationRef.current = null;
-    setBuilderOpen(false);
-  }
 
   const historyItems = useMemo(
     () =>
@@ -1031,7 +993,6 @@ function WorkspacePage() {
           <button
             type="button"
             onClick={() => {
-              builderConversationRef.current = activeId ?? null;
               setBuilderOpen(true);
             }}
             className="text-[12.5px]"
@@ -1235,7 +1196,6 @@ function WorkspacePage() {
               tool={tool}
               maxWidth={DEVICES[device]}
               filesOpen={filesOpen}
-              onGenerated={showGeneratedInChat}
             />
           </div>
         </div>

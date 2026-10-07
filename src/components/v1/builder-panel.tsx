@@ -63,12 +63,10 @@ export function BuilderPanel({
   tool,
   maxWidth,
   filesOpen,
-  onGenerated,
 }: {
   tool: string;
   maxWidth: string;
   filesOpen: boolean;
-  onGenerated?: (prompt: string, result: string) => void;
 }) {
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -85,6 +83,7 @@ export function BuilderPanel({
   const [projectsVersion, setProjectsVersion] = useState(0);
   const reportError = useCallback((m: string) => setError(m), []);
   // Latest active project; responses for any other project are ignored.
+  const generatingRef = useRef(false);
   const activeRef = useRef(projectId);
   activeRef.current = projectId;
 
@@ -123,7 +122,8 @@ export function BuilderPanel({
 
   const generate = async () => {
     const text = prompt.trim();
-    if (!text || busy) return;
+    if (!text || busy || generatingRef.current) return;
+    generatingRef.current = true;
     setBusy(true);
     setError(null);
     setSummary(null);
@@ -147,7 +147,6 @@ export function BuilderPanel({
         );
       } else {
         setSummary(res.message);
-        onGenerated?.(text, res.message);
       }
       await refresh();
     } catch (e) {
@@ -155,6 +154,7 @@ export function BuilderPanel({
         e instanceof V1ApiError || e instanceof Error ? e.message : 'Generation failed.',
       );
     } finally {
+      generatingRef.current = false;
       setBusy(false);
     }
   };
