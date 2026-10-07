@@ -3,7 +3,7 @@
  * edit/save → live preview built from the current workspace files.
  * Uses only the existing chat API and workspace API (no duplicate systems).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 import { BuildTerminal } from './build-terminal';
 import { ProjectBar, useActiveProject } from './project-bar';
@@ -25,18 +25,38 @@ async function readFile(projectId: string, path: string): Promise<string> {
   return data.content ?? '';
 }
 
-function buildPreview(files: Record<string, string>): string | null {
-  const html = files['site/index.html'];
-  if (!html) return null;
-  const css = files['site/styles.css'] ?? '';
-  const js = files['site/script.js'] ?? '';
-  const safeJs = js.replace(/<\/script/gi, '<\\/script');
-  return html
-    .replace(/<link[^>]*href=["']\.?\/?styles\.css["'][^>]*>/i, `<style>${css}</style>`)
-    .replace(
-      /<script[^>]*src=["']\.?\/?script\.js["'][^>]*><\/script>/i,
-      `<script>${safeJs}</script>`,
-    );
+const PREVIEW_ENTRIES = ['site/index.html', 'index.html', 'public/index.html', 'src/index.html'];
+
+function resolvePath(dir: string, href: string): string {
+  const parts = (href.startsWith('/') ? href.slice(1) : `${dir}${href}`).split('/');
+  const out: string[] = [];
+  for (const p of parts) {
+    if (p === '..') out.pop();
+    else if (p && p !== '.') out.push(p);
+  }
+  return out.join('/');
+}
+
+/** Renders the active project's entry HTML with its local CSS/JS inlined. */
+export function buildPreview(files: Record<string, string>): string | null {
+  const entry = PREVIEW_ENTRIES.find((p) => files[p] !== undefined);
+  if (!entry) return null;
+  const dir = entry.includes('/') ? entry.slice(0, entry.lastIndexOf('/') + 1) : '';
+  const lookup = (href: string) => {
+    if (/^(https?:)?\/\//i.test(href)) return undefined;
+    return files[resolvePath(dir, href)] ?? (href.startsWith('/') ? files[resolvePath(dir, href.slice(1))] : undefined);
+  };
+  return files[entry]!
+    .replace(/<link[^>]*href=["']([^"']+\.css)["'][^>]*>/gi, (tag, href: string) => {
+      const css = lookup(href);
+      return css === undefined ? tag : `<style>${css}</style>`;
+    })
+    .replace(/<script([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (tag, a: string, href: string, b: string) => {
+      const js = lookup(href);
+      if (js === undefined) return tag;
+      const attrs = `${a}${b}`.replace(/\s+/g, ' ').trim();
+      return `<script${attrs ? ` ${attrs}` : ''}>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
+    });
 }
 
 export function BuilderPanel({
@@ -64,6 +84,9 @@ export function BuilderPanel({
   const [projectId, selectProject] = useActiveProject();
   const [projectsVersion, setProjectsVersion] = useState(0);
   const reportError = useCallback((m: string) => setError(m), []);
+  // Latest active project; responses for any other project are ignored.
+  const activeRef = useRef(projectId);
+  activeRef.current = projectId;
 
   const refresh = useCallback(async () => {
     try {
@@ -73,13 +96,16 @@ export function BuilderPanel({
         throw new Error(data.error ?? 'Could not load workspace files.');
       }
       const list = (await res.json()) as WorkspaceFileSummary[];
+      if (activeRef.current !== projectId) return;
       setFiles(list);
-      const site = list.filter((f) => f.path.startsWith('site/'));
+      const web = list.filter((f) => /\.(html?|css|js)$/i.test(f.path));
       const entries = await Promise.all(
-        site.map(async (f) => [f.path, await readFile(projectId, f.path)] as const),
+        web.map(async (f) => [f.path, await readFile(projectId, f.path)] as const),
       );
+      if (activeRef.current !== projectId) return;
       setContents(Object.fromEntries(entries));
     } catch (e) {
+      if (activeRef.current !== projectId) return;
       setError(e instanceof Error ? e.message : 'Could not load workspace files.');
     }
   }, [projectId]);
@@ -136,7 +162,9 @@ export function BuilderPanel({
   const open = async (path: string) => {
     setError(null);
     try {
-      const content = await readFile(projectId, path);
+      const forProject = projectId;
+      const content = await readFile(forProject, path);
+      if (activeRef.current !== forProject) return;
       setOpenPath(path);
       setNotice(null);
       setDraft(content);
