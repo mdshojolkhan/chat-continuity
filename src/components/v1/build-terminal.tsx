@@ -9,20 +9,54 @@ import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 type Status = 'IDLE' | 'BUILDING' | 'SUCCESS' | 'ERROR';
 
 const BUILD_PREFIX = [
-  'You are building real project source files in the V1 workspace (not documentation or demo HTML).',
-  'Use file_read/file_list to inspect existing files, then use file_write to create or update source files',
-  '(for example src/..., package.json, config files) needed for the request.',
-  'Do not write explanatory HTML pages or docs. Reply with a short list of files changed.',
+  'IMPLEMENTATION REQUEST. You are the V1 Admin AI implementing a real application in the V1 workspace.',
+  'Step 1: call file_list (and file_read on relevant files) to inspect existing Workspace Files.',
+  'Step 2: implement the request as real, runnable source files split by responsibility, using file_write:',
+  'e.g. package.json with dependencies and scripts, server code (server/index.js or src/server/*.ts),',
+  'frontend code (src/*.tsx/.ts/.js, components, styles), and required config files. Reuse and modify existing files when appropriate.',
+  'Never write architecture guides, blueprint pages, simulators, fake demo HTML, or Markdown docs,',
+  'and never put an entire application inside one HTML file. A small index.html entry that loads separate script files is fine.',
+  'Reply with a short list of files changed.',
   'Request:',
 ].join(' ');
 
 const WRITE_TOOLS = new Set(['file_write', 'file_delete']);
 const MAX_FIX_ATTEMPTS = 3;
 const FIX_PREFIX = [
-  'The previous build step for the V1 workspace failed validation.',
-  'Use file_read/file_list to inspect the relevant project source files, then fix the problem with file_write.',
-  'Only edit real source files; do not write documentation HTML. Reply with a short list of files changed.',
+  'IMPLEMENTATION REQUEST (fix pass). The previous build for the V1 workspace failed validation.',
+  'Use file_read/file_list to inspect the relevant project source files, then fix the problem with file_write',
+  '(or file_delete for documentation/demo files that should not exist). Implement real, separate source files;',
+  'no documentation, blueprint/simulator pages, or single-file HTML apps. Reply with a short list of files changed.',
 ].join(' ');
+
+const SOURCE_EXT = /\.(tsx?|jsx?|mjs|cjs|json|css|scss|vue|svelte|py|go|rs|toml|ya?ml|env\.example)$/i;
+const DOC_EXT = /\.(md|mdx|txt|rst)$/i;
+const FAKE_DOC = /architecture (guide|overview)|blueprint|simulat(or|ion)|implementation guide|how it works/i;
+
+/** True only when the user explicitly asks for documentation. */
+export function wantsDocumentation(text: string): boolean {
+  if (/\b(do not|don't|dont|no|without)\s+(create\s+|write\s+|generate\s+|add\s+)?(any\s+)?(documentation|docs?)\b/i.test(text)) return false;
+  return /\b(write|create|generate|add)\s+(the\s+|a\s+|some\s+)?(documentation|docs|readme)\b/i.test(text);
+}
+
+/** Validates that written files are a real implementation, not docs/demo HTML. */
+export function validateImplementation(files: Map<string, string>, allowDocs: boolean): string[] {
+  if (allowDocs || files.size === 0) return [];
+  const errors: string[] = [];
+  const paths = [...files.keys()];
+  if (!paths.some((p) => SOURCE_EXT.test(p))) {
+    errors.push('No real source files were written (only HTML/docs). Create separate frontend/backend source and config files.');
+  }
+  for (const [p, content] of files) {
+    if (DOC_EXT.test(p)) errors.push(`${p}: documentation file written but not requested; delete it and implement source code.`);
+    if (/\.html?$/i.test(p)) {
+      const inlineScript = (content.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi) ?? []).join('').length;
+      if (FAKE_DOC.test(content)) errors.push(`${p}: looks like a documentation/blueprint/demo page; replace it with real implementation files.`);
+      else if (inlineScript > 1500) errors.push(`${p}: entire app inlined into one HTML file; move logic into separate source files.`);
+    }
+  }
+  return errors;
+}
 
 export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
   const [prompt, setPrompt] = useState('');
@@ -41,6 +75,8 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
     setLines([...out]);
 
     const touched = new Set<string>();
+    const written = new Map<string, string>();
+    const allowDocs = wantsDocumentation(text);
     let message = `${BUILD_PREFIX} ${text}`;
     let anyWrite = false;
     let lastError = '';
@@ -68,11 +104,18 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
         }
         const wrote = steps.filter((s) => WRITE_TOOLS.has(s.toolId) && s.status === 'completed');
         if (wrote.length) anyWrite = true;
+        for (const s of wrote) {
+          const p = typeof s.input?.['path'] === 'string' ? s.input['path'] : '';
+          if (!p) continue;
+          if (s.toolId === 'file_delete') written.delete(p);
+          else written.set(p, typeof s.input?.['content'] === 'string' ? s.input['content'] : '');
+        }
         // Validation: every step must succeed and at least one file change must exist.
         const errors = steps
           .filter((s) => s.status === 'failed' || s.status === 'refused')
           .map((s) => `${s.toolId}${typeof s.input?.['path'] === 'string' ? ` ${s.input['path']}` : ''}: ${s.error ?? s.status}`);
         if (!anyWrite) errors.push('No project files were modified.');
+        errors.push(...validateImplementation(written, allowDocs));
         if (!errors.length) {
           log(`✓ validation passed (${wrote.length} file change(s) this pass).`);
           if (res.message) log(res.message);
