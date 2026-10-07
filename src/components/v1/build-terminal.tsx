@@ -75,6 +75,8 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
     setLines([...out]);
 
     const touched = new Set<string>();
+    const written = new Map<string, string>();
+    const allowDocs = wantsDocumentation(text);
     let message = `${BUILD_PREFIX} ${text}`;
     let anyWrite = false;
     let lastError = '';
@@ -102,11 +104,18 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
         }
         const wrote = steps.filter((s) => WRITE_TOOLS.has(s.toolId) && s.status === 'completed');
         if (wrote.length) anyWrite = true;
+        for (const s of wrote) {
+          const p = typeof s.input?.['path'] === 'string' ? s.input['path'] : '';
+          if (!p) continue;
+          if (s.toolId === 'file_delete') written.delete(p);
+          else written.set(p, typeof s.input?.['content'] === 'string' ? s.input['content'] : '');
+        }
         // Validation: every step must succeed and at least one file change must exist.
         const errors = steps
           .filter((s) => s.status === 'failed' || s.status === 'refused')
           .map((s) => `${s.toolId}${typeof s.input?.['path'] === 'string' ? ` ${s.input['path']}` : ''}: ${s.error ?? s.status}`);
         if (!anyWrite) errors.push('No project files were modified.');
+        errors.push(...validateImplementation(written, allowDocs));
         if (!errors.length) {
           log(`✓ validation passed (${wrote.length} file change(s) this pass).`);
           if (res.message) log(res.message);
