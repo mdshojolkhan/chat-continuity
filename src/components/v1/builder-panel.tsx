@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 import { BuildTerminal } from './build-terminal';
 import { ProjectBar, useActiveProject } from './project-bar';
+import { DevicePreview, type PreviewDevice } from './device-preview';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
@@ -61,11 +62,12 @@ export function buildPreview(files: Record<string, string>): string | null {
 
 export function BuilderPanel({
   tool,
-  maxWidth,
+  device = 'Desktop',
   filesOpen,
 }: {
   tool: string;
-  maxWidth: string;
+  maxWidth?: string;
+  device?: PreviewDevice;
   filesOpen: boolean;
 }) {
   const [prompt, setPrompt] = useState('');
@@ -378,21 +380,14 @@ export function BuilderPanel({
 
       {!filesMode && (
       <div
-        className="flex min-h-[320px] flex-1 justify-center rounded-xl border p-3"
+        className="flex min-h-[420px] flex-1 justify-center rounded-xl border p-3"
         style={box}
       >
         {preview ? (
-          <iframe
-            title="Workspace preview"
-            srcDoc={preview}
-            sandbox="allow-scripts"
-            className="h-full min-h-[300px] w-full rounded-lg bg-background"
-            style={{ maxWidth }}
-            data-testid="frame-builder-preview"
-          />
+          <DevicePreview html={preview} device={device} frameKey={projectId} />
         ) : (
           <p className="self-center text-sm" style={{ color: 'var(--ws-muted)' }}>
-            No preview yet — generate a site to create site/index.html.
+            No preview yet — this project has no index.html.
           </p>
         )}
       </div>

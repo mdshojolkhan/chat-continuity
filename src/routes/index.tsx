@@ -1194,7 +1194,7 @@ function WorkspacePage() {
 
             <BuilderPanel
               tool={tool}
-              maxWidth={DEVICES[device]}
+              device={device}
               filesOpen={filesOpen}
             />
           </div>
