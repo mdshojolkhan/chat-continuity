@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { workspaceStore } from "@/lib/v1/files/index.server";
+import { workspaceFor } from "@/lib/v1/files/index.server";
 import {
   apiError,
   errorToResponse,
@@ -19,7 +19,9 @@ export const Route = createFileRoute("/api/v1/workspace")({
       GET: async ({ request }) => {
         try {
           assertPermissions(["fs:workspace"]);
-          const path = new URL(request.url).searchParams.get("path");
+          const params = new URL(request.url).searchParams;
+          const workspaceStore = workspaceFor(params.get("projectId"));
+          const path = params.get("path");
           if (path) {
             const file = await workspaceStore.read(path);
             if (!file) return apiError("invalid_request", "File not found.", 404);
@@ -44,9 +46,12 @@ export const Route = createFileRoute("/api/v1/workspace")({
           // This is a direct human action from the editor, so it runs as the
           // "user" role. Without it the registry defaulted to "helper", which is
           // denied fs:workspace:write — that was the "Save failed" cause.
-          const result = await toolRegistry.run("file_write", body.value, {
+          const { projectId, ...input } = (body.value ?? {}) as { projectId?: string };
+          const workspaceStore = workspaceFor(projectId);
+          const result = await toolRegistry.run("file_write", input, {
             conversationId: "workspace-panel",
             aiRole: "user",
+            ...(projectId ? { projectId } : {}),
           });
           const path = (body.value as { path?: unknown })?.path;
           const saved =
@@ -83,7 +88,13 @@ export const Route = createFileRoute("/api/v1/workspace")({
           const result = await toolRegistry.run(
             "file_delete",
             { path: parsed.data.path },
-            { conversationId: "workspace-panel", aiRole: "user" },
+            {
+              conversationId: "workspace-panel",
+              aiRole: "user",
+              ...(typeof (body.value as { projectId?: unknown }).projectId === "string"
+                ? { projectId: (body.value as { projectId: string }).projectId }
+                : {}),
+            },
             { approved: true },
           );
           return json({ ok: true, result });
