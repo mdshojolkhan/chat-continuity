@@ -28,6 +28,8 @@ export type ToolContext = {
    * so workspace writes always require an explicit admin/user context.
    */
   aiRole?: AiRole;
+  /** Active Builder project; file tools only touch this project's files. */
+  projectId?: string;
 };
 
 export type V1Tool<Schema extends z.ZodTypeAny = z.ZodTypeAny> = {

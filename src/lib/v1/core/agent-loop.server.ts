@@ -47,6 +47,8 @@ export type AgentLoopRequest = {
   conversationId: string;
   /** Role of the AI answering this turn. Defaults to least-privileged "helper". */
   aiRole?: AiRole;
+  /** Active Builder project for workspace file tools. */
+  projectId?: string;
 };
 
 export type AgentLoopResult = {
@@ -164,6 +166,7 @@ export async function runAgentLoop(
         registry,
         conversationId: request.conversationId,
         aiRole: request.aiRole ?? "helper",
+        ...(request.projectId ? { projectId: request.projectId } : {}),
         approved,
         index: steps.length + 1,
       });
@@ -206,6 +209,7 @@ async function executeToolCall(
     registry: ToolRegistry;
     conversationId: string;
     aiRole: AiRole;
+    projectId?: string;
     approved: Set<string>;
     index: number;
   },
@@ -265,7 +269,11 @@ async function executeToolCall(
     const result = await context.registry.run(
       tool.id,
       args.input,
-      { conversationId: context.conversationId, aiRole: context.aiRole },
+      {
+        conversationId: context.conversationId,
+        aiRole: context.aiRole,
+        ...(context.projectId ? { projectId: context.projectId } : {}),
+      },
       { approved: context.approved.has(tool.id) },
     );
     const summary = truncate(result);

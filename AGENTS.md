@@ -14,3 +14,4 @@
 - Chat's AI role is resolved server-side in `resolveChatEngine`; the client may pick a provider but never its role. With no Admin AI selected, the built-in engine acts as admin so the App Builder keeps working.
 - Workspace files persist in the Lovable Cloud table `public.workspace_files` (RLS on, no policies), accessed only server-side via the service-role client in `src/lib/v1/files/index.server.ts`; never expose it to the browser or store API keys there.
 - Chat message Markdown and clipboard controls live in the existing V1 chat view and its presentation helper, so message content remains the single source of truth for display, copying, and revisions.
+- Workspace Files are namespaced by `project_id` (table `workspace_projects`, PK `(project_id, path)`); file tools get the active project via `ToolContext.projectId`, defaulting to "default" so pre-existing files stay in the Default project.

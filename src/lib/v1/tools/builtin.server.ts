@@ -14,7 +14,7 @@ import { z } from "zod";
 import { longTermMemory } from "../memory/index.server";
 import { planStore } from "../planning/index.server";
 import { webSearch } from "../search/index.server";
-import { workspaceStore } from "../files/index.server";
+import { workspaceFor } from "../files/index.server";
 import { planStepStatusSchema } from "../types";
 import { ToolRegistry, type V1Tool } from "./registry";
 
@@ -139,7 +139,8 @@ const fileWrite: V1Tool<
     content: z.string().max(64_000),
     mode: z.enum(["overwrite", "append"]).optional(),
   }),
-  async execute(input) {
+  async execute(input, context) {
+    const workspaceStore = workspaceFor(context.projectId);
     const file =
       input.mode === "append"
         ? await workspaceStore.append(input.path, input.content)
@@ -155,8 +156,8 @@ const fileRead: V1Tool<z.ZodObject<{ path: z.ZodString }>> = {
   requiresApproval: false,
   permissions: ["fs:workspace"],
   inputSchema: z.object({ path: z.string().min(1).max(200) }),
-  async execute(input) {
-    const file = await workspaceStore.read(input.path);
+  async execute(input, context) {
+    const file = await workspaceFor(context.projectId).read(input.path);
     if (!file) return "That workspace file does not exist.";
     return `${file.path} (${file.bytes} bytes):\n${file.content}`;
   },
@@ -169,8 +170,8 @@ const fileList: V1Tool<z.ZodObject<Record<string, never>>> = {
   requiresApproval: false,
   permissions: ["fs:workspace"],
   inputSchema: z.object({}),
-  async execute() {
-    const files = await workspaceStore.list();
+  async execute(_input, context) {
+    const files = await workspaceFor(context.projectId).list();
     if (files.length === 0) return "The workspace is empty.";
     return files
       .map((file) => `${file.path} — ${file.bytes} bytes, updated ${file.updatedAt}`)
@@ -186,8 +187,8 @@ const fileDelete: V1Tool<z.ZodObject<{ path: z.ZodString }>> = {
   requiresApproval: true,
   permissions: ["fs:workspace", "fs:workspace:write"],
   inputSchema: z.object({ path: z.string().min(1).max(200) }),
-  async execute(input) {
-    const removed = await workspaceStore.remove(input.path);
+  async execute(input, context) {
+    const removed = await workspaceFor(context.projectId).remove(input.path);
     return removed
       ? `Deleted ${input.path}.`
       : "That workspace file does not exist.";

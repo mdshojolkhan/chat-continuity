@@ -142,7 +142,13 @@ export async function handleChatTurn(
     .join("\n\n");
 
   const loop = await runAgentLoop(
-    { system, messages: history, conversationId, aiRole },
+    {
+      system,
+      messages: history,
+      conversationId,
+      aiRole,
+      ...(request.projectId ? { projectId: request.projectId } : {}),
+    },
     { engine, registry },
     {
       maxSteps: deps.maxSteps ?? DEFAULT_MAX_AGENT_STEPS,
