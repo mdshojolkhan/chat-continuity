@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 import { BuildTerminal } from './build-terminal';
+import { ProjectBar, useActiveProject } from './project-bar';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
@@ -17,8 +18,8 @@ const GENERATE_PREFIX = [
   'Request:',
 ].join(' ');
 
-async function readFile(path: string): Promise<string> {
-  const res = await fetch(`/api/v1/workspace?path=${encodeURIComponent(path)}`);
+async function readFile(projectId: string, path: string): Promise<string> {
+  const res = await fetch(`/api/v1/workspace?projectId=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`);
   const data = (await res.json().catch(() => ({}))) as { content?: string; error?: string };
   if (!res.ok) throw new Error(data.error ?? 'Could not open that file.');
   return data.content ?? '';
@@ -60,10 +61,13 @@ export function BuilderPanel({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [projectId, selectProject] = useActiveProject();
+  const [projectsVersion, setProjectsVersion] = useState(0);
+  const reportError = useCallback((m: string) => setError(m), []);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/workspace');
+      const res = await fetch(`/api/v1/workspace?projectId=${encodeURIComponent(projectId)}`);
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? 'Could not load workspace files.');
@@ -72,15 +76,22 @@ export function BuilderPanel({
       setFiles(list);
       const site = list.filter((f) => f.path.startsWith('site/'));
       const entries = await Promise.all(
-        site.map(async (f) => [f.path, await readFile(f.path)] as const),
+        site.map(async (f) => [f.path, await readFile(projectId, f.path)] as const),
       );
       setContents(Object.fromEntries(entries));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load workspace files.');
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
+    // Switching projects: reset per-project view state, then load its files.
+    setOpenPath(null);
+    setDraft('');
+    setFiles([]);
+    setContents({});
+    setNotice(null);
+    setError(null);
     void refresh();
   }, [refresh]);
 
@@ -94,7 +105,8 @@ export function BuilderPanel({
       const res = await sendChatMessage({
         message: `${GENERATE_PREFIX} ${text}`.slice(0, 8000),
         mode: 'programming',
-        conversationId: 'v1-builder',
+        conversationId: `v1-builder-${projectId}`,
+        projectId,
       });
       const wrote = (res.steps ?? []).filter(
         (s) => s.toolId === 'file_write' && s.status === 'completed',
@@ -124,7 +136,7 @@ export function BuilderPanel({
   const open = async (path: string) => {
     setError(null);
     try {
-      const content = await readFile(path);
+      const content = await readFile(projectId, path);
       setOpenPath(path);
       setNotice(null);
       setDraft(content);
@@ -142,14 +154,15 @@ export function BuilderPanel({
       const res = await fetch('/api/v1/workspace', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: openPath, content: draft }),
+        body: JSON.stringify({ projectId, path: openPath, content: draft }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Save failed (HTTP ${res.status}).`);
       // Read back from the workspace to confirm the content really persisted.
-      const stored = await readFile(openPath);
+      const stored = await readFile(projectId, openPath);
       if (stored !== draft) throw new Error('Save failed: the stored file does not match your edits.');
       await refresh();
+      setProjectsVersion((v) => v + 1);
       setNotice(`Saved ${openPath}.`);
     } catch (e) {
       setError(e instanceof Error ? `Save failed: ${e.message.replace(/^Save failed:?\s*/, '')}` : 'Save failed.');
@@ -168,7 +181,7 @@ export function BuilderPanel({
       const res = await fetch('/api/v1/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ projectId, path }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; result?: string };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -194,6 +207,13 @@ export function BuilderPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
+      <ProjectBar
+        projectId={projectId}
+        onSelect={selectProject}
+        onChanged={() => void refresh()}
+        onError={reportError}
+        version={projectsVersion}
+      />
       {showPrompt && (
         <div className="rounded-xl border p-3" style={box}>
           <textarea
@@ -223,7 +243,14 @@ export function BuilderPanel({
         </div>
       )}
 
-      {showPrompt && <BuildTerminal onBuilt={() => void refresh()} />}
+      {showPrompt && <BuildTerminal
+          key={projectId}
+          projectId={projectId}
+          onBuilt={() => {
+            void refresh();
+            setProjectsVersion((v) => v + 1);
+          }}
+        />}
 
       {error ? (
         <p

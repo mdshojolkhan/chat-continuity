@@ -58,7 +58,7 @@ export function validateImplementation(files: Map<string, string>, allowDocs: bo
   return errors;
 }
 
-export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
+export function BuildTerminal({ onBuilt, projectId }: { onBuilt?: () => void; projectId?: string }) {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<Status>('IDLE');
   const [lines, setLines] = useState<string[]>([]);
@@ -87,7 +87,8 @@ export function BuildTerminal({ onBuilt }: { onBuilt?: () => void }) {
         const res = await sendChatMessage({
           message: message.slice(0, 8000),
           mode: 'programming',
-          conversationId: 'v1-build-terminal',
+          conversationId: `v1-build-terminal-${projectId ?? 'default'}`,
+          ...(projectId ? { projectId } : {}),
         });
         log(`> provider: ${res.provider}  role: ${res.aiRole ?? 'unknown'}`);
         const steps = res.steps ?? [];
