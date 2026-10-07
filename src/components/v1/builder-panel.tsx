@@ -12,12 +12,33 @@ import { DevicePreview, type PreviewDevice } from './device-preview';
 import type { WorkspaceFileSummary } from '@/lib/v1/types';
 
 const GENERATE_PREFIX = [
-  'Build the requested app as real files inside the V1 workspace, saving each one with the file_write skill.',
+  'IMPLEMENTATION REQUEST. Build the requested app as real files inside the V1 workspace.',
+  'You MUST call the file_write tool for every file you create or change; a text-only answer or a plan without file_write calls is a failure.',
+  'Create as many files as the app needs, in whatever framework, modules or API it requires.',
   BUILDER_STRUCTURE_RULES,
   'If relevant files already exist, read them first and update them instead of starting over.',
   'After saving, reply with a short summary of what you built.',
   'Request:',
 ].join(' ');
+
+const WRITE_NUDGE =
+  'You replied without saving any files. Do not explain or plan again. Now call file_write for each source file of the app requested above, then reply with the list of files saved.';
+
+type GenStep = { toolId?: string; status?: string; error?: string; input?: unknown };
+
+/** Pure: classify a Generate run's steps. Exported for tests. */
+export function classifyGenerate(steps: GenStep[]): {
+  written: number;
+  writeErrors: string[];
+} {
+  const writes = steps.filter((s) => s.toolId === 'file_write' || s.toolId === 'file_append');
+  return {
+    written: writes.filter((s) => s.status === 'completed').length,
+    writeErrors: writes
+      .filter((s) => s.status === 'failed' || s.status === 'refused')
+      .map((s) => s.error ?? 'File write failed.'),
+  };
+}
 
 async function readFile(projectId: string, path: string): Promise<string> {
   const res = await fetch(`/api/v1/workspace?projectId=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path)}`);
@@ -130,25 +151,42 @@ export function BuilderPanel({
     setError(null);
     setSummary(null);
     try {
-      const res = await sendChatMessage({
+      const conversationId = `v1-builder-${projectId}`;
+      let res = await sendChatMessage({
         message: `${GENERATE_PREFIX} ${text}`.slice(0, 8000),
         mode: 'programming',
-        conversationId: `v1-builder-${projectId}`,
+        conversationId,
         projectId,
       });
-      const wrote = (res.steps ?? []).filter(
-        (s) => s.toolId === 'file_write' && s.status === 'completed',
-      );
-      if (!wrote.length) {
+      let result = classifyGenerate(res.steps ?? []);
+      const isLocal = /local/i.test(res.provider);
+      // Text-only reply from an Admin AI: ask once more to actually save the files.
+      if (!result.written && !result.writeErrors.length && res.aiRole !== 'helper' && !isLocal) {
+        res = await sendChatMessage({
+          message: `${WRITE_NUDGE} Original request: ${text}`.slice(0, 8000),
+          mode: 'programming',
+          conversationId,
+          projectId,
+        });
+        result = classifyGenerate(res.steps ?? []);
+      }
+      if (activeRef.current !== projectId) return;
+      if (result.written > 0) {
+        setSummary(`${res.message}\n\nSaved ${result.written} file write(s).`);
+        if (result.writeErrors.length)
+          setError(`Some files could not be saved: ${result.writeErrors.join(' | ')}`);
+      } else if (res.aiRole === 'helper') {
+        setError('A Helper AI cannot write files. Select an Admin AI in Settings → AI Providers.');
+      } else if (result.writeErrors.length) {
+        setError(`Saving files failed: ${result.writeErrors.join(' | ')}`);
+      } else if (isLocal) {
         setError(
-          res.aiRole === 'helper'
-            ? 'A Helper AI cannot write files. Select an Admin AI in Settings → AI Providers.'
-            : /local/i.test(res.provider)
-              ? 'No AI model is connected, so no files were created. Add an API key and set an Admin AI in Settings → AI Providers.'
-              : 'The AI replied but did not save any files. Try a more specific prompt.',
+          'No AI model is connected, so no files were created. Add an API key and set an Admin AI in Settings → AI Providers.',
         );
       } else {
-        setSummary(res.message);
+        setError(
+          'Generate failed: the AI answered with text only and did not call the file-write tool, even after a second request, so no files were saved.',
+        );
       }
       await refresh();
     } catch (e) {
