@@ -15,3 +15,4 @@
 - Workspace files persist in the Lovable Cloud table `public.workspace_files` (RLS on, no policies), accessed only server-side via the service-role client in `src/lib/v1/files/index.server.ts`; never expose it to the browser or store API keys there.
 - Chat message Markdown and clipboard controls live in the existing V1 chat view and its presentation helper, so message content remains the single source of truth for display, copying, and revisions.
 - Workspace Files are namespaced by `project_id` (table `workspace_projects`, PK `(project_id, path)`); file tools get the active project via `ToolContext.projectId`, defaulting to "default" so pre-existing files stay in the Default project.
+- Builder code-generation structure rules live once in `src/lib/v1/builder-rules.ts` and are reused by Generate and the Build Terminal prompts; change them there so every entry point stays consistent.

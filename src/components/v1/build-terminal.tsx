@@ -24,7 +24,8 @@ const FIX_PREFIX = [
   'IMPLEMENTATION REQUEST (fix pass). The previous build for the V1 workspace failed validation.',
   'Use file_read/file_list to inspect the relevant project source files, then fix the problem with file_write',
   '(or file_delete for documentation/demo files that should not exist). Implement real, separate source files;',
-  'no documentation, blueprint/simulator pages, or single-file HTML apps. Reply with a short list of files changed.',
+  'no documentation, blueprint/simulator pages, or single-file HTML apps. Keep the existing modular structure; do not restructure files that are not part of the error.',
+  'Reply with a short list of files changed.',
 ].join(' ');
 
 const SOURCE_EXT = /\.(tsx?|jsx?|mjs|cjs|json|css|scss|vue|svelte|py|go|rs|toml|ya?ml|env\.example)$/i;
