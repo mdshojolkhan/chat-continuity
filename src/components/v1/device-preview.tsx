@@ -1,7 +1,9 @@
 /**
  * Device preview: renders the active project's preview HTML inside a
- * realistically sized desktop/tablet/phone frame, scaled to fit, with a
- * fullscreen option.
+ * realistically sized desktop/tablet/phone frame. Auto-zoom fits the frame's
+ * width into the panel; the frame is never shrunk below a readable minimum.
+ * The stage scrolls vertically (and horizontally if needed) so tall devices
+ * stay readable instead of being scaled down to fit their full height.
  */
 import { useEffect, useRef, useState } from 'react';
 
@@ -15,14 +17,24 @@ export type PreviewDevice = keyof typeof PREVIEW_DEVICES;
 const CHROME = 36; // desktop browser bar height
 const BEZEL = { Desktop: 0, Tablet: 18, Mobile: 12 } as const;
 
+// Fixed zoom presets; "auto" fits the frame width into the panel.
+const ZOOM_PRESETS = [0.4, 0.5, 0.75, 1] as const;
+const MIN_AUTO_SCALE = 0.4; // never shrink the device below this for readability
+
 export function DevicePreview({ html, device, frameKey }: { html: string; device: PreviewDevice; frameKey: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 800, h: 600 });
   const [fullscreen, setFullscreen] = useState(false);
+  const [zoomPct, setZoomPct] = useState<number | 'auto'>('auto');
   const spec = PREVIEW_DEVICES[device];
   const bezel = BEZEL[device];
   const outerW = spec.width + bezel * 2;
   const outerH = spec.height + bezel * 2 + (device === 'Desktop' ? CHROME : 0);
+
+  // Reset zoom when switching devices so each device starts readable.
+  useEffect(() => {
+    setZoomPct('auto');
+  }, [device]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -41,7 +53,19 @@ export function DevicePreview({ html, device, frameKey }: { html: string; device
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen]);
 
-  const scale = Math.min(1, box.w / outerW, Math.max(box.h, 300) / outerH);
+  const autoScale = Math.min(1, Math.max(box.w / outerW, MIN_AUTO_SCALE));
+  const scale = zoomPct === 'auto' ? autoScale : zoomPct;
+
+  const stepZoom = (dir: 1 | -1) => {
+    const current = scale;
+    if (dir === 1) {
+      const next = ZOOM_PRESETS.find((p) => p > current + 0.001);
+      setZoomPct(next ?? ZOOM_PRESETS[ZOOM_PRESETS.length - 1]);
+    } else {
+      const next = [...ZOOM_PRESETS].reverse().find((p) => p < current - 0.001);
+      setZoomPct(next ?? ZOOM_PRESETS[0]);
+    }
+  };
 
   const frame = (
     <div
@@ -50,7 +74,7 @@ export function DevicePreview({ html, device, frameKey }: { html: string; device
         width: outerW,
         height: outerH,
         transform: `scale(${scale})`,
-        transformOrigin: 'top center',
+        transformOrigin: 'top left',
         padding: bezel,
         borderRadius: device === 'Mobile' ? 44 : device === 'Tablet' ? 28 : 10,
         background: device === 'Desktop' ? 'var(--ws-raised)' : 'var(--ws-line)',
@@ -91,22 +115,67 @@ export function DevicePreview({ html, device, frameKey }: { html: string; device
 
   const toolbar = (
     <div className="mb-2 flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--ws-muted)' }}>
-      <span className="truncate">{spec.label} · {Math.round(scale * 100)}%</span>
-      <button
-        type="button"
-        onClick={() => setFullscreen((v) => !v)}
-        className="shrink-0 rounded-[7px] border px-2 py-1"
-        style={{ borderColor: 'var(--ws-line)', background: 'var(--ws-panel)' }}
-        data-testid="button-preview-fullscreen"
-      >
-        {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-      </button>
+      <span className="truncate" data-testid="text-preview-viewport">
+        {spec.label} · {Math.round(scale * 100)}%
+      </span>
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={() => stepZoom(-1)}
+          className="rounded-[7px] border px-2 py-1"
+          style={{ borderColor: 'var(--ws-line)', background: 'var(--ws-panel)' }}
+          aria-label="Zoom out"
+          data-testid="button-preview-zoom-out"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={() => setZoomPct('auto')}
+          className="rounded-[7px] border px-2 py-1"
+          style={{
+            borderColor: zoomPct === 'auto' ? 'var(--ws-accent)' : 'var(--ws-line)',
+            background: 'var(--ws-panel)',
+            color: zoomPct === 'auto' ? 'var(--ws-accent)' : undefined,
+          }}
+          aria-label="Fit width"
+          data-testid="button-preview-fit"
+        >
+          Fit
+        </button>
+        <button
+          type="button"
+          onClick={() => stepZoom(1)}
+          className="rounded-[7px] border px-2 py-1"
+          style={{ borderColor: 'var(--ws-line)', background: 'var(--ws-panel)' }}
+          aria-label="Zoom in"
+          data-testid="button-preview-zoom-in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => setFullscreen((v) => !v)}
+          className="ml-1 rounded-[7px] border px-2 py-1"
+          style={{ borderColor: 'var(--ws-line)', background: 'var(--ws-panel)' }}
+          data-testid="button-preview-fullscreen"
+        >
+          {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        </button>
+      </div>
     </div>
   );
 
+  // Scrollable stage: the frame keeps its natural scaled size and the stage
+  // scrolls vertically (and horizontally) when it exceeds the panel, so the
+  // device is never shrunk just to fit its full height.
   const stage = (
-    <div ref={wrapRef} className="flex min-h-0 flex-1 justify-center overflow-hidden">
-      <div style={{ width: outerW * scale, height: outerH * scale }} className="flex justify-center">
+    <div ref={wrapRef} className="flex min-h-0 flex-1 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
+      <div
+        className="shrink-0"
+        style={{ width: outerW * scale, height: outerH * scale, margin: 'auto' }}
+        data-testid="stage-preview-frame"
+      >
         {frame}
       </div>
     </div>
