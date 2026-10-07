@@ -3,6 +3,7 @@
  * Every project has its own Workspace Files namespace on the server.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { strToU8, zipSync } from 'fflate';
 
 export type ProjectSummary = { id: string; name: string; fileCount: number; updatedAt: string };
 
@@ -20,6 +21,31 @@ export function useActiveProject() {
     setProjectId(id);
   }, []);
   return [projectId, select] as const;
+}
+
+/** Zips exactly the given project's files, preserving paths and contents. */
+export async function downloadProjectZip(projectId: string, name: string) {
+  const q = `projectId=${encodeURIComponent(projectId)}`;
+  const res = await fetch(`/api/v1/workspace?${q}`);
+  const list = (await res.json().catch(() => null)) as { path: string }[] | { error?: string } | null;
+  if (!res.ok || !Array.isArray(list)) throw new Error((list as { error?: string })?.error ?? 'Could not load project files.');
+  if (!list.length) throw new Error('This project has no files to download.');
+  const entries: Record<string, Uint8Array> = {};
+  for (const f of list) {
+    const r = await fetch(`/api/v1/workspace?${q}&path=${encodeURIComponent(f.path)}`);
+    const d = (await r.json().catch(() => ({}))) as { content?: string; error?: string };
+    if (!r.ok || typeof d.content !== 'string') throw new Error(d.error ?? `Could not read ${f.path}.`);
+    entries[f.path] = strToU8(d.content);
+  }
+  const zip = zipSync(entries, { level: 6 });
+  const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'project'}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function call(body: Record<string, unknown>) {
@@ -110,6 +136,14 @@ export function ProjectBar({
           const name = window.prompt('New project name', 'New project')?.trim();
           if (name) void run(async () => { const p = await call({ action: 'create', name }); if (p.id) onSelect(p.id); });
         }}>New</button>
+      <button type="button" className={btn} style={style} disabled={busy} data-testid="button-project-zip"
+        onClick={() => {
+          if (busy) return;
+          setBusy(true);
+          downloadProjectZip(projectId, current?.name ?? projectId)
+            .catch((e) => onError(e instanceof Error ? e.message : 'Download failed.'))
+            .finally(() => setBusy(false));
+        }}>Download ZIP</button>
       <button type="button" className={btn} style={style} disabled={busy} data-testid="button-project-rename"
         onClick={() => {
           const name = window.prompt('Rename project', current?.name ?? '')?.trim();
