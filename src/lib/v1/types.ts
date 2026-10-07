@@ -33,6 +33,8 @@ export const chatRequestSchema = z.object({
   mode: assistantModeSchema.optional(),
   /** Stable id so the orchestrator can group a conversation. */
   conversationId: z.string().min(1).max(120).optional(),
+  /** Active Builder project whose workspace files the tools may use. */
+  projectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   /**
    * Skills the user explicitly approved for this turn. Approval-gated skills
    * are refused unless their id appears here.
