@@ -60,10 +60,10 @@ export function DevicePreview({ html, device, frameKey }: { html: string; device
     const current = scale;
     if (dir === 1) {
       const next = ZOOM_PRESETS.find((p) => p > current + 0.001);
-      setZoomPct(next ?? ZOOM_PRESETS[ZOOM_PRESETS.length - 1]);
+      setZoomPct(next ?? 1);
     } else {
       const next = [...ZOOM_PRESETS].reverse().find((p) => p < current - 0.001);
-      setZoomPct(next ?? ZOOM_PRESETS[0]);
+      setZoomPct(next ?? 0.4);
     }
   };
 
