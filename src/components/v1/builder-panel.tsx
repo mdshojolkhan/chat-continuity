@@ -321,6 +321,8 @@ export function BuilderPanel({
           }}
         />}
 
+      {showPrompt && <ApkBuilder key={`apk-${projectId}`} projectId={projectId} />}
+
       {error ? (
         <p
           className="rounded-lg border px-3 py-2 text-sm"
