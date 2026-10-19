@@ -2,6 +2,7 @@
  * HTTP helpers shared by the V1 API routes: JSON responses, request-size limits
  * and consistent error mapping. No route may leak internals to the client.
  */
+import { ApkBuildError } from "./apk/github.server";
 import { ModelEngineError } from "./model-engine/engine";
 import { PermissionDeniedError } from "./security/permissions";
 import { ToolError } from "./tools/registry";
@@ -71,6 +72,15 @@ export function errorToResponse(error: unknown): Response {
   }
   if (error instanceof Error && error.name === "WorkspaceStorageError") {
     return apiError("internal_error", error.message, 503);
+  }
+  if (error instanceof ApkBuildError) {
+    const status =
+      error.code === "not_configured"
+        ? 503
+        : error.code === "build_failed"
+          ? 400
+          : 502;
+    return apiError("internal_error", error.message, status);
   }
   if (error instanceof ModelEngineError) {
     switch (error.code) {
