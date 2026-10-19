@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiV1ApkRouteImport } from './routes/api/v1/apk'
 import { Route as ApiV1ProjectsRouteImport } from './routes/api/v1/projects'
 import { Route as ApiV1ProvidersRouteImport } from './routes/api/v1/providers'
 import { Route as ApiV1StatusRouteImport } from './routes/api/v1/status'
@@ -33,6 +34,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ApkRoute = ApiV1ApkRouteImport.update({
+  id: '/api/v1/apk',
+  path: '/api/v1/apk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ProjectsRoute = ApiV1ProjectsRouteImport.update({
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/apk': typeof ApiV1ApkRoute
   '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/apk': typeof ApiV1ApkRoute
   '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/v1/apk': typeof ApiV1ApkRoute
   '/api/v1/projects': typeof ApiV1ProjectsRoute
   '/api/v1/providers': typeof ApiV1ProvidersRoute
   '/api/v1/status': typeof ApiV1StatusRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/apk'
     | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/apk'
     | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/v1/apk'
     | '/api/v1/projects'
     | '/api/v1/providers'
     | '/api/v1/status'
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiV1ApkRoute: typeof ApiV1ApkRoute
   ApiV1ProjectsRoute: typeof ApiV1ProjectsRoute
   ApiV1ProvidersRoute: typeof ApiV1ProvidersRoute
   ApiV1StatusRoute: typeof ApiV1StatusRoute
@@ -180,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/apk': {
+      id: '/api/v1/apk'
+      path: '/api/v1/apk'
+      fullPath: '/api/v1/apk'
+      preLoaderRoute: typeof ApiV1ApkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects': {
@@ -250,6 +270,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiV1ApkRoute: ApiV1ApkRoute,
   ApiV1ProjectsRoute: ApiV1ProjectsRoute,
   ApiV1ProvidersRoute: ApiV1ProvidersRoute,
   ApiV1StatusRoute: ApiV1StatusRoute,

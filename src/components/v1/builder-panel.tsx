@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sendChatMessage, V1ApiError } from '@/lib/v1/client';
 import { BUILDER_STRUCTURE_RULES } from '@/lib/v1/builder-rules';
+import { ApkBuilder } from './apk-builder';
 import { BuildTerminal } from './build-terminal';
 import { ProjectBar, useActiveProject } from './project-bar';
 import { DevicePreview, type PreviewDevice } from './device-preview';
@@ -319,6 +320,8 @@ export function BuilderPanel({
             setProjectsVersion((v) => v + 1);
           }}
         />}
+
+      {showPrompt && <ApkBuilder key={`apk-${projectId}`} projectId={projectId} />}
 
       {error ? (
         <p
