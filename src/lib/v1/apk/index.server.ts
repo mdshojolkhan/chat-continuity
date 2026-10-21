@@ -7,6 +7,13 @@
 import { zipSync } from "fflate";
 import { workspaceFor } from "@/lib/v1/files/index.server";
 import {
+  ANDROID_CONFIG_PATH,
+  generateAndroidFiles,
+  parseAndroidConfig,
+  validateAndroidConfig,
+  type AndroidConfig,
+} from "./config";
+import {
   ApkBuildError,
   commitFiles,
   downloadApk,
@@ -27,6 +34,7 @@ export async function buildProjectZip(projectId: string): Promise<Uint8Array> {
   }
   const entries: Record<string, Uint8Array> = {};
   for (const file of files) {
+    if (file.path.startsWith(".v1/")) continue; // builder settings, not app content
     const content = await store.read(file.path);
     if (content) entries[file.path] = new TextEncoder().encode(content.content);
   }
@@ -45,12 +53,29 @@ export async function buildProjectZip(projectId: string): Promise<Uint8Array> {
   return zipSync(entries, { level: 6 });
 }
 
+export async function loadAndroidConfig(projectId: string): Promise<AndroidConfig> {
+  const file = await workspaceFor(projectId).read(ANDROID_CONFIG_PATH);
+  return parseAndroidConfig(file?.content);
+}
+
+export async function saveAndroidConfig(projectId: string, config: AndroidConfig): Promise<AndroidConfig> {
+  const problems = validateAndroidConfig(config);
+  if (problems.length) throw new ApkBuildError(problems.join(" "), "build_failed");
+  await workspaceFor(projectId).write(ANDROID_CONFIG_PATH, JSON.stringify(config));
+  return config;
+}
+
 /** Starts an APK build for the given project. Returns the workflow run id. */
 export async function startApkBuild(projectId: string): Promise<{ runId: number }> {
+  const config = await loadAndroidConfig(projectId);
+  const problems = validateAndroidConfig(config);
+  if (problems.length) {
+    throw new ApkBuildError(`Fix the Android settings first: ${problems.join(" ")}`, "build_failed");
+  }
   const zip = await buildProjectZip(projectId);
   const { owner, repo } = await ensureBuildRepo();
   await ensureTemplate(owner, repo);
-  const runId = await startBuild(owner, repo, zip);
+  const runId = await startBuild(owner, repo, zip, generateAndroidFiles(config));
   return { runId };
 }
 

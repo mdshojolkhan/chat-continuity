@@ -166,8 +166,14 @@ export async function startBuild(
   owner: string,
   repo: string,
   zipBytes: Uint8Array,
+  androidFiles: Record<string, string | Uint8Array> = {},
 ): Promise<number> {
-  await commitFiles(owner, repo, { [ZIP_PATH]: zipBytes }, "Upload project ZIP for APK build");
+  await commitFiles(
+    owner,
+    repo,
+    { ...androidFiles, [ZIP_PATH]: zipBytes },
+    "Apply Android app settings and upload project ZIP for APK build",
+  );
 
   const before = Date.now();
   await gh(`/repos/${owner}/${repo}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {

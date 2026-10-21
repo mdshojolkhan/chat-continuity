@@ -114,7 +114,7 @@ export function validateAndroidConfig(c: AndroidConfig): string[] {
       }
     }
   }
-  if (c.adaptiveForeground !== null && !validImage(c.adaptiveForeground)) errors.push("Adaptive icon is invalid. Upload the logo again.");
+  if (c.icons && !validImage(c.adaptiveForeground)) errors.push("Adaptive icon is invalid. Upload the logo again.");
   if (!c.splash || !COLOR_RE.test(c.splash.backgroundColor ?? "")) errors.push("Splash background must be a color like #12121C.");
   if (c.splash?.logo !== null && c.splash?.logo !== undefined && !validImage(c.splash.logo)) errors.push("Splash logo is invalid. Upload it again.");
   const known = new Set(ANDROID_PERMISSIONS.map((p) => p.id));
